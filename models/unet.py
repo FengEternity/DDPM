@@ -2,8 +2,9 @@ import math
 import torch
 import torch.nn as nn
 
-
+# 创建时间步长嵌入
 def get_timestep_embedding(timesteps, embedding_dim):
+    # 确保时间步长是一维的
     assert len(timesteps.shape) == 1
 
     half_dim = embedding_dim // 2
@@ -16,16 +17,16 @@ def get_timestep_embedding(timesteps, embedding_dim):
         emb = torch.nn.functional.pad(emb, (0, 1, 0, 0))
     return emb
 
-
+# 创建非线性函数
 def nonlinearity(x):
-    # swish
+    # 使用swish函数
     return x*torch.sigmoid(x)
 
-
+# 创建归一化函数
 def Normalize(in_channels):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
 
-
+# 创建上采样函数
 class Upsample(nn.Module):
     def __init__(self, in_channels, with_conv):
         super().__init__()
@@ -45,6 +46,7 @@ class Upsample(nn.Module):
         return x
 
 
+# 创建下采样函数
 class Downsample(nn.Module):
     def __init__(self, in_channels, with_conv):
         super().__init__()
@@ -66,6 +68,7 @@ class Downsample(nn.Module):
         return x
 
 
+# 创建残差块
 class ResnetBlock(nn.Module):
     def __init__(self, *, in_channels, out_channels=None, conv_shortcut=False,
                  dropout, temb_channels=512):
@@ -126,6 +129,7 @@ class ResnetBlock(nn.Module):
         return x+h
 
 
+# 创建注意力块
 class AttnBlock(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
@@ -180,6 +184,7 @@ class AttnBlock(nn.Module):
         return x+h_
 
 
+# 创建扩散 U-Net
 class DiffusionUNet(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -286,15 +291,21 @@ class DiffusionUNet(nn.Module):
                                         padding=1)
 
     def forward(self, x, t):
+        # 前向传播
+
+
         assert x.shape[2] == x.shape[3] == self.resolution
 
-        # timestep embedding
+        # 时间步长嵌入
+        # 在每个时间步t，通过 get_timestep_embedding 函数得到一个与输入张量形状相同的时间步长嵌入张量
         temb = get_timestep_embedding(t, self.ch)
         temb = self.temb.dense[0](temb)
         temb = nonlinearity(temb)
         temb = self.temb.dense[1](temb)
 
         # 下采样
+        # 通过下采样操作，模型将输入图像 x 缩小为不同的尺度，以提取不同层次的特征信息。
+        # 在每个下采样层，使用 ResnetBlock 进行特征提取，并在有需要时应用注意力块 AttnBlock
         hs = [self.conv_in(x)]
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
@@ -305,13 +316,17 @@ class DiffusionUNet(nn.Module):
             if i_level != self.num_resolutions-1:
                 hs.append(self.down[i_level].downsample(hs[-1]))
 
-        # middle
+        # 中间处理
+        # 在中间处理阶段，模型对最底层的特征进行进一步的处理。
+        # 使用 ResnetBlock 进行特征提取，并应用注意力块以增强特征表示。
         h = hs[-1]
         h = self.mid.block_1(h, temb)
         h = self.mid.attn_1(h)
         h = self.mid.block_2(h, temb)
 
         # 上采样
+        # 通过上采样操作，模型将特征图像 h 还原为原始输入图像的尺度。
+        # 在每个上采样层，使用 ResnetBlock 进行特征提取，并在有需要时应用注意力块。最后使用 Upsample 模块将特征图像放大。
         for i_level in reversed(range(self.num_resolutions)):
             for i_block in range(self.num_res_blocks+1):
                 h = self.up[i_level].block[i_block](
@@ -321,7 +336,8 @@ class DiffusionUNet(nn.Module):
             if i_level != 0:
                 h = self.up[i_level].upsample(h)
 
-        # end
+        # 最终处理
+        # 在最终处理阶段，模型对经过上采样处理的特征进行归一化、非线性激活，并通过卷积层进行最终的特征映射，得到去噪后的图像结果。
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)
