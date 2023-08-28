@@ -6,17 +6,27 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import utils
 from models.unet import DiffusionUNet
+import tqdm
 
 
 def data_transform(X):
+    # 将数据映射到[-1, 1]之间
     return 2 * X - 1.0
 
 
 def inverse_data_transform(X):
+    # 将数据逆向映射回到[0, 1]之间
     return torch.clamp((X + 1.0) / 2.0, 0.0, 1.0)
 
 
 class EMAHelper(object):
+    '''
+    指数移动平均辅助类
+    * 用于模型参数的指数移动平均
+    * 支持参数注册、更新、EMA（替换模型参数为移动平均值）以及复制替代模型
+
+    没太看懂，过会儿再看
+    '''
     def __init__(self, mu=0.9999):
         self.mu = mu
         self.shadow = {}
@@ -63,6 +73,14 @@ class EMAHelper(object):
 
 
 def get_beta_schedule(beta_schedule, *, beta_start, beta_end, num_diffusion_timesteps):
+    '''
+    获取beta值
+    :param beta_schedule: beta值计算方式
+    :param beta_start: beta初始值
+    :param beta_end: beta结束值
+    :param num_diffusion_timesteps: 扩散步数
+    :return: beta值
+    '''
     def sigmoid(x):
         return 1 / (np.exp(-x) + 1)
 
@@ -84,6 +102,14 @@ def get_beta_schedule(beta_schedule, *, beta_start, beta_end, num_diffusion_time
 
 
 def noise_estimation_loss(model, x0, t, e, b):
+    '''
+    噪声估计损失
+    :param model: 模型
+    :param x0: 输入图像
+    :param t: 扩散步数
+    :param e: 噪声
+    :param b: beta值
+    '''
     a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1, 1)
     x = x0[:, 3:, :, :] * a.sqrt() + e * (1.0 - a).sqrt()
     output = model(torch.cat([x0[:, :3, :, :], x], dim=1), t.float())
@@ -91,7 +117,11 @@ def noise_estimation_loss(model, x0, t, e, b):
 
 
 class DenoisingDiffusion(object):
+    '''
+    去噪扩散模型
+    '''
     def __init__(self, config):
+        # 初始化模型训练配置
         super().__init__()
         self.config = config
         self.device = config.device
@@ -117,6 +147,7 @@ class DenoisingDiffusion(object):
         self.num_timesteps = betas.shape[0]
 
     def load_ddm_ckpt(self, load_path, ema=False):
+        # 加载预模型权重
         checkpoint = utils.logging.load_checkpoint(load_path, None)
         self.start_epoch = checkpoint['epoch']
         self.step = checkpoint['step']
@@ -128,6 +159,7 @@ class DenoisingDiffusion(object):
         print("=> loaded checkpoint '{}' (epoch {}, step {})".format(load_path, checkpoint['epoch'], self.step))
 
     def train(self, DATASET):
+        # 执行模型训练过程，包括数据加载、模型更新、模型保存等
         cudnn.benchmark = True
         train_loader, val_loader = DATASET.get_loaders()
 
@@ -139,7 +171,7 @@ class DenoisingDiffusion(object):
             print('=> current epoch: ', epoch)
             data_start = time.time()
             data_time = 0
-            for i, (x, y) in enumerate(train_loader):
+            for i, (x, y) in tqdm(enumerate(train_loader)):
                 x = x.flatten(start_dim=0, end_dim=1) if x.ndim == 5 else x
                 n = x.size(0)
                 data_time += time.time() - data_start
@@ -182,6 +214,15 @@ class DenoisingDiffusion(object):
                     }, filename=self.config.training.resume)
 
     def sample_image(self, x_cond, x, last=True, patch_locs=None, patch_size=None):
+        '''
+        采样图像：根据条件图像和输入图像采样生成图像，用于生成验证图像
+        :param x_cond: 条件图像
+        :param x: 输入图像
+        :param last: 是否只返回最后一张图像
+        :param patch_locs: 图像块位置
+        :param patch_size: 图像块大小
+        :return: 采样图像
+        '''
         skip = self.config.diffusion.num_diffusion_timesteps // self.config.sampling.sampling_timesteps
         seq = range(0, self.config.diffusion.num_diffusion_timesteps, skip)
         if patch_locs is not None:
@@ -192,8 +233,13 @@ class DenoisingDiffusion(object):
         if last:
             xs = xs[0][-1]
         return xs
-    
+
     def sample_validation_patches(self, val_loader, step):
+        '''
+        采样验证图像：根据验证数据集采样生成图像，保存条件图像和生成的去噪图像
+        :param val_loader: 验证数据加载器
+        :param step: 当前步数
+        '''
         image_folder = os.path.join(self.config.data.val_save_dir, str(self.config.data.image_size))
         with torch.no_grad():
             print(f"Processing a single batch of validation images at step: {step}")
