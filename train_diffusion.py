@@ -1,3 +1,4 @@
+# 导入相关的库
 import argparse
 import os
 import yaml
@@ -10,6 +11,7 @@ from models import DenoisingDiffusion
 
 
 def config_get():
+    # 参数配置：获取配置信息并返回一个包含配置信息的对象
     parser = argparse.ArgumentParser()
     # 参数配置文件路径
     parser.add_argument("--config", default='configs.yml', type=str, required=False, help="Path to the config file")
@@ -23,6 +25,7 @@ def config_get():
 
 
 def dict2namespace(config):
+    # 将配置信息转换为命名空间
     namespace = argparse.Namespace()
     for key, value in config.items():
         if isinstance(value, dict):
@@ -34,6 +37,8 @@ def dict2namespace(config):
 
 
 def main():
+
+    # 获取配置信息
     config = config_get()
 
     # 判断是否使用 cuda
