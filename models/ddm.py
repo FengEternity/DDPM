@@ -126,16 +126,20 @@ class DenoisingDiffusion(object):
         self.config = config
         self.device = config.device
 
+        # 创建 DiffusionUNet 模型并配置相关参数
         self.model = DiffusionUNet(config)
         self.model.to(self.device)
         self.model = torch.nn.DataParallel(self.model)
 
+        # 创建 EMAHelper 辅助类并注册模型
         self.ema_helper = EMAHelper()
         self.ema_helper.register(self.model)
 
+        # 创建优化器、学习率调度器
         self.optimizer = utils.optimize.get_optimizer(self.config, self.model.parameters())
         self.start_epoch, self.step = 0, 0
 
+        # 获取扩散时间步数的 beta 值
         betas = get_beta_schedule(
             beta_schedule=config.diffusion.beta_schedule,
             beta_start=config.diffusion.beta_start,
@@ -143,6 +147,7 @@ class DenoisingDiffusion(object):
             num_diffusion_timesteps=config.diffusion.num_diffusion_timesteps,
         )
 
+        # 将 beta 值转换为 tensor 并保存
         betas = self.betas = torch.from_numpy(betas).float().to(self.device)
         self.num_timesteps = betas.shape[0]
 
@@ -163,19 +168,21 @@ class DenoisingDiffusion(object):
         cudnn.benchmark = True
         train_loader, val_loader = DATASET.get_loaders()
 
+        # 如果有断点，则加载断点
         if os.path.isfile(self.config.training.resume):
             self.load_ddm_ckpt(self.config.training.resume)
 
-        # 训练
+        # 开始训练
         for epoch in range(self.start_epoch, self.config.training.n_epochs):
             print('=> current epoch: ', epoch)
             data_start = time.time()
             data_time = 0
             for i, (x, y) in tqdm(enumerate(train_loader)):
+                # 数据预处理
                 x = x.flatten(start_dim=0, end_dim=1) if x.ndim == 5 else x
                 n = x.size(0)
                 data_time += time.time() - data_start
-                self.model.train()
+                self.model.train() # 设置模型为训练模式
                 self.step += 1
 
                 x = x.to(self.device)

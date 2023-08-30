@@ -189,6 +189,7 @@ class DiffusionUNet(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        # print(config)
         ch, out_ch, ch_mult = config.model.ch, config.model.out_ch, tuple(config.model.ch_mult)
         num_res_blocks = config.model.num_res_blocks
         attn_resolutions = config.model.attn_resolutions
@@ -341,7 +342,8 @@ class DiffusionUNet(nn.Module):
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)
-        return h
 
+        # h = h + x
+        return h
 
 # net = DiffusionUNet()
