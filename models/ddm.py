@@ -110,11 +110,20 @@ def noise_estimation_loss(model, x0, t, e, b):
     :param e: 噪声
     :param b: beta值
     '''
-    a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1, 1)
-    x = x0[:, 3:, :, :] * a.sqrt() + e * (1.0 - a).sqrt()
-    output = model(torch.cat([x0[:, :3, :, :], x], dim=1), t.float())
+    dark_ch = dark_channel(x0[:, 3:, :, :], window_size = 15) # 计算暗通道
+
+    a = (1-b).cumprod(dim=0).index_select(0, t).view(-1, 1, 1, 1) # 通过扩散步数 t 计算权重信息
+    x = x0[:, 3:, :, :] * a.sqrt() + e * (1.0 - a).sqrt() # 计算噪声估计值
+    x = torch.cat([dark_ch, x], dim=1) # 将暗通道和噪声估计值拼接
+    output = model(torch.cat([x0[:, :3, :, :], x], dim=1), t.float()) # 计算输出图像
     return (e - output).square().sum(dim=(1, 2, 3)).mean(dim=0)
 
+
+def dark_channel(image, window_size):
+    # 计算暗通道
+    padded_image = torch.nn.functional.pad(image, (window_size // 2, window_size // 2, window_size // 2, window_size // 2), mode='reflect')
+    dark_channel = torch.min(padded_image.unfold(2, window_size, 1).unfold(3, window_size, 1), dim=4).values
+    return dark_channel.min(dim=2, keepdim=True).values
 
 class DenoisingDiffusion(object):
     '''
