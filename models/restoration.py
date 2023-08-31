@@ -12,18 +12,21 @@ def inverse_data_transform(X):
 
 
 class DiffusiveRestoration:
+    '''
+    执行扩散恢复
+    '''
     def __init__(self, diffusion, config):
         super(DiffusiveRestoration, self).__init__()
         self.config = config
         self.diffusion = diffusion
 
-        # 判断预训练模型是否存在
+        # 加载预训练模型，并设置为评估模式
         pretrained_model_path = self.config.training.resume + '.pth.tar'
         assert os.path.isfile(pretrained_model_path), ('pretrained diffusion model path is wrong!')
         self.diffusion.load_ddm_ckpt(pretrained_model_path, ema=True)
         self.diffusion.model.eval()
 
-    def restore(self, val_loader, r=None):
+    def restore(self, val_loader, r = None):
         image_folder = self.config.data.test_save_dir
         with torch.no_grad():
             for i, (x, y) in enumerate(val_loader):

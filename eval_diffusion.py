@@ -57,7 +57,7 @@ def main():
     model = DiffusiveRestoration(diffusion, config)
 
     # 恢复图像
-    model.restore(val_loader, r=config.data.grid_r)
+    model.restore(val_loader, r = config.data.grid_r)
 
 
 if __name__ == '__main__':
