@@ -1,0 +1,50 @@
+data:
+    image_size: 64
+    channels: 3
+    num_workers: 0 # 用于数据加载的线程数
+    train_data_dir: "./datasets/train/"
+    test_data_dir: './datasets/test/'
+    test_save_dir: './result/'
+    val_save_dir: './validation/'
+    grid_r: 16 # 网格的尺寸参数
+    conditional: True # 是否使用条件图像进行训练
+
+model:
+    in_channels: 5 # 输入图像的通道数
+    out_ch: 3
+    ch: 128
+    ch_mult: [1, 2, 3, 4] # 通道数的倍数列表
+    num_res_blocks: 2 # 残差块的数量
+    attn_resolutions: [16, ] # 注意力机制的分辨率
+    dropout: 0.0 # dropout的概率
+    ema_rate: 0.999 # 指数移动平均的速率
+    ema: True # 是否使用指数移动平均
+    resamp_with_conv: True # 是否使用卷积进行上采样
+
+diffusion:
+    beta_schedule: linear # beta的变化方式
+    beta_start: 0.0001 # beta的初始值
+    beta_end: 0.02 # beta的最终值
+    num_diffusion_timesteps: 1000 # 扩散的时间步数
+
+training:
+    patch_n: 16 # 每个图像的patch数量
+    batch_size: 2
+    n_epochs: 2000
+    n_iters: 2000000
+    snapshot_freq: 10000  # 模型的保存频率
+    validation_freq: 10000 # 模型的验证频率
+    resume: './pretrained_model/diffusion_model'  # 预训练模型的路径，用于断点训练
+    seed: 514  # 随机种子
+
+sampling:
+    batch_size: 2 # 采样时的batch_size
+    last_only: True # 是否只采样最后一张图像
+    sampling_timesteps: 25 # 采样的时间步数
+
+optim:
+    weight_decay: 0.000 # 权重衰减
+    optimizer: "Adam"
+    lr: 0.00002
+    amsgrad: False # 是否使用amsgrad
+    eps: 0.00000001 # 用于数值稳定的eps
